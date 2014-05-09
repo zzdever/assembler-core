@@ -20,3 +20,5 @@ HEADERS  += \
     assembler.h
 
 FORMS    +=
+
+OTHER_FILES +=
