@@ -12,9 +12,11 @@ TARGET = assembler-core
 TEMPLATE = app
 
 
-SOURCES += main.cpp\
-        mainwindow.cpp
+SOURCES += \
+    assembler.cpp \
+    main.cpp
 
-HEADERS  += mainwindow.h
+HEADERS  += \
+    assembler.h
 
-FORMS    += mainwindow.ui
+FORMS    +=
