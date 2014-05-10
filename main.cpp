@@ -1,9 +1,10 @@
-﻿#define ASSEM 01
-#define PARSE 0
+﻿#define ASSEM 0
+#define PARSE 01
 #define TEST  0
 #define TEST2 0
 
 #include <iostream>
+#include <sstream>
 #include <QVector>
 #include <QString>
 #include <QFile>
@@ -11,54 +12,10 @@
 #include <QDebug>
 #include <QTextCodec>
 #include "assembler.h"
+#include "lookuptable.h"
 
-#if ASSEM
-void InstructionCompose(QTextStream &streamXml,QVector<QString*> tokenList)
-{
-    QString line;
-    MatchTable matchTable;
-    int matchId;
 
-    for(int i=0;i<tokenList.size();i++)
-    {
-        if(tokenList[i]==NULL) break;
-        streamXml>>line;
-
-        if(line.compare("<register>")==0)
-        {
-            streamXml>>line;
-            matchId=matchTable.MatchRegister(line);
-
-            if(matchId<0)
-                qDebug()<<"Unknown register number/name";
-            else
-                *(tokenList[i])=QString(registerSet[matchId].number);
-qDebug()<<"register match:"<<registerSet[matchId].number;
-        }
-        else if(line.compare("<parameter>")==0)
-        {
-            streamXml>>line;
-    qDebug()<<"parameter match:"<<line.toInt();
-            *(tokenList[i])=line.toInt();
-        }
-        else if(line.compare("<reference>")==0)
-        {
-            //tokenList[i];
-        }
-        else
-            qDebug()<<"Unknown operand type or wrong instruction";
-
-        streamXml.readLine();
-    }
-    return;
-}
-
-unsigned short int instructionEncode(QTextStream &streamXml, QString type)
-{
-    ;
-}
-
-int main(void)
+int Assem(void)
 {
     QFile fileXml("/Users/ying/assemble.xml");
     if(!fileXml.open(QIODevice::ReadOnly | QIODevice::Text)){
@@ -78,11 +35,12 @@ int main(void)
     unsigned int instruction=0;
     MatchTable matchTable;
     int matchId;
-    QString rs, rt ,rd, shamt, immediate, address;
-    QVector<QString*>tokenList(6,NULL);
+    unsigned short int rs, rt, rd, shamt;
+    unsigned int address;
+    int immediate;
+
     while(!streamXml.atEnd()){
         streamXml>>line;
-qDebug()<<line;
 
         if(line.compare("<blankline/>")==0)
             continue;
@@ -96,81 +54,69 @@ qDebug()<<line;
             streamXml>>line;
             matchId=matchTable.MatchInstruction(line);
 
-            if(matchId<=0) qDebug()<<"Unknown/unsupported instruction name";
+            if(matchId<0) qDebug()<<line<<"Unknown/unsupported instruction name";
             instruction=coreInstructionSet[matchId].opcode<<26
                       | coreInstructionSet[matchId].funct;
 
             streamXml.readLine();
-            tokenList.fill(NULL);
             switch (matchId) {
             case 0: case 3: case 4: case 16: case 17: case 19: case 22: case 29: case 30:
                 //add,addu,and,nor,or,slt,sltu,sub,subu
-                tokenList[0]=&rd;
-                tokenList[1]=&rs;
-                tokenList[2]=&rt;
-                InstructionCompose(streamXml,tokenList);
-                instruction=instruction
-                        | rs.toInt()<<21 | rt.toInt()<<16 | rd.toInt()<<11;
+                rd=(unsigned short int)matchTable.instructionEncode(streamXml,"<register>");
+                rs=(unsigned short int)matchTable.instructionEncode(streamXml,"<register>");
+                rt=(unsigned short int)matchTable.instructionEncode(streamXml,"<register>");
+                instruction=instruction | rs<<21 | rt<<16 | rd<<11;
                 break;
 
             case 1: case 2: case 5: case 18: case 20: case 21:
                 //addi,addiu,andi,ori,slti,sltiu
-                tokenList[0]=&rt;
-                tokenList[1]=&rs;
-                tokenList[2]=&immediate;
-                InstructionCompose(streamXml,tokenList);
-                instruction=instruction
-                        | rs.toInt()<<21 | rt.toInt()<<16 | immediate.toInt();
+                rt=(unsigned short int)matchTable.instructionEncode(streamXml,"<register>");
+                rs=(unsigned short int)matchTable.instructionEncode(streamXml,"<register>");
+                immediate=(unsigned short int)matchTable.instructionEncode(streamXml,"<parameter>");
+                instruction=instruction | rs<<21 | rt<<16 | immediate;
                 break;
 
-            case 6: case 7: //beq,bne
-                tokenList[0]=&rs;
-                tokenList[1]=&rt;
-                tokenList[2]=&address;
-                InstructionCompose(streamXml,tokenList);
-                instruction=instruction
-                        | rs.toInt()<<21 | rt.toInt()<<16 | address.toInt();
+            case 6: case 7:
+                //beq,bne
+                rs=(unsigned short int)matchTable.instructionEncode(streamXml,"<register>");
+                rt=(unsigned short int)matchTable.instructionEncode(streamXml,"<register>");
+                address=(unsigned short int)matchTable.instructionEncode(streamXml,"<reference>");
+                instruction=instruction | rs<<21 | rt<<16 | address;
                 break;
 
-            case 8: case 9: //j,jal
-                tokenList[0]=&address;
-                InstructionCompose(streamXml,tokenList);
-                instruction=instruction | address.toInt()<<26;
+            case 8: case 9:
+                //j,jal
+                address=(unsigned short int)matchTable.instructionEncode(streamXml,"<reference>");
+                instruction=instruction | address<<26;
                 break;
 
-            case 10: //jr
-                tokenList[0]=&rs;
-                InstructionCompose(streamXml,tokenList);
-                instruction=instruction | rs.toInt()<<21;
+            case 10:
+                //jr
+                rs=(unsigned short int)matchTable.instructionEncode(streamXml,"<register>");
+                instruction=instruction | rs<<21;
                 break;
 
             case 11: case 12: case 13: case 15: case 25: case 26: case 27: case 28:
                 //lbu,lhu,ll,lw,sb,sc,sh,sw
-                tokenList[0]=&rt;
-                tokenList[1]=&immediate;
-                tokenList[2]=&rs;e
-                InstructionCompose(streamXml,tokenList);
-    qDebug()<<"rt:"<<rt.toInt()<<"imme: "<<immediate.toInt()<<"rs:"<<rs.toInt();
-                instruction=instruction
-                        | rs.toInt()<<21 | rt.toInt()<<16 | immediate.toInt();
+                rt=(unsigned short int)matchTable.instructionEncode(streamXml,"<register>");
+                immediate=(unsigned short int)matchTable.instructionEncode(streamXml,"<parameter>");
+                rs=(unsigned short int)matchTable.instructionEncode(streamXml,"<register>");
+                instruction=instruction | rs<<21 | rt<<16 | immediate;
                 break;
 
-            case 14: //lui
-                tokenList[0]=&rt;
-                tokenList[1]=&immediate;
-                InstructionCompose(streamXml,tokenList);
-                instruction=instruction
-                        | rt.toInt()<<16 | immediate.toInt();
+            case 14:
+                //lui
+                rt=(unsigned short int)matchTable.instructionEncode(streamXml,"<register>");
+                immediate=(unsigned short int)matchTable.instructionEncode(streamXml,"<parameter>");
+                instruction=instruction | rt<<16 | immediate;
                 break;
 
-            case 23: case 24: //sll,srl
-                tokenList[0]=&rd;
-                tokenList[1]=&rt;
-                tokenList[2]=&shamt;
-                InstructionCompose(streamXml,tokenList);
-                instruction=instruction
-                        | rs.toInt()<<21 | rt.toInt()<<16
-                                      | rd.toInt()<<11 | shamt.toInt()<<6;
+            case 23: case 24:
+                //sll,srl
+                rd=(unsigned short int)matchTable.instructionEncode(streamXml,"<register>");
+                rt=(unsigned short int)matchTable.instructionEncode(streamXml,"<register>");;
+                shamt=(unsigned short int)matchTable.instructionEncode(streamXml,"<parameter>");
+                instruction=instruction | rs<<21 | rt<<16 | rd<<11 | shamt<<6;
                 break;
 
             default:
@@ -178,8 +124,9 @@ qDebug()<<line;
             }
 
             instructionAddress+=4;
-            qDebug()<<instruction;
-            streamObj<<qSetFieldWidth(8)<<hex<<instruction<<endl;
+            streamObj<<qSetFieldWidth(8)<<qSetPadChar('0')<<hex<<instruction;
+            streamObj<<reset;
+            streamObj<<endl;
         }
         else if(line.compare("<label>"))
         {
@@ -196,7 +143,7 @@ qDebug()<<line;
 
     return 0;
 }
-#endif
+//#endif
 #if PARSE
 int main(void)
 {
@@ -228,6 +175,8 @@ int main(void)
 
     QString line;
     int lineNumber=0;
+    unsigned int address=0;
+    LookUpTable labelLookUpTable;
     while (!streamAsm.atEnd()) {
         streamXml<<"<linenumber> "<<++lineNumber<<" </linenumber>"<<endl;
         line=streamAsm.readLine();
@@ -253,6 +202,7 @@ int main(void)
                     qDebug()<<labelPattern.capturedTexts();
                     streamXml<<"<label> "<<labelPattern.capturedTexts()[1]
                             <<" </label>"<<endl;
+                    labelLookUpTable.Push(labelPattern.capturedTexts()[1],address);
                     position=matchPosition+labelPattern.matchedLength();
                     labelFlag=1;
                     continue;
@@ -271,6 +221,7 @@ int main(void)
                     position=matchPosition+instructionPattern.matchedLength();
 
                     instructionFlag=1;
+                    address+=4;  //address counting
                     continue;
                 }
             }
@@ -316,7 +267,7 @@ int main(void)
     fileAsm.close();
     fileXml.close();
 
-//    QRegExp instruction("\\s*(\\w+)\\s+([\\w$]+)\\s*,\\s*([\\w+$]+)\\s*(.*)");
+    labelLookUpTable.PrintAll();
 
     return 0;
 }
@@ -324,9 +275,18 @@ int main(void)
 #endif
 
 #if TEST
+void foo(QTextStream &stream)
+{
+    QString line;
+    line=stream.readLine();
+    qDebug()<<line;
+
+    return;
+}
+
 int main(void)
 {
-    QFile fileAsm("/home/dever/ch");
+    QFile fileAsm("/Users/ying/assemble");
     if(!fileAsm.open(QIODevice::ReadOnly | QIODevice::Text)){
         qDebug()<<"Error in opening ASM file";
     }
@@ -339,10 +299,11 @@ int main(void)
     QRegExp labelPattern("\\s*(\\$[a-zA-Z]*\\d*)\\s*");
     labelPattern.setCaseSensitivity(Qt::CaseSensitive);
 
-
-
-    QString line("$T3");
-    line=line.toLower();
+    QString line;
+    line=streamAsm.readLine();
+    qDebug()<<line;
+    foo(streamAsm);
+    line=streamAsm.readLine();
     qDebug()<<line;
     instructionPattern.indexIn(line);
     std::cout<<instructionPattern.capturedTexts()[1].toStdString();
@@ -356,25 +317,14 @@ int main(void)
 #endif
 
 #if TEST2
-void foo(int a)
-{
-    qDebug()<<a;
-    return;
-}
 
-void foo(char a)
-{
-    qDebug()<<a;
-    return;
-}
 
 int main(void)
 {
-    int a=9;
-    char c='d';
-
-    foo(a);
-    foo(c);
+    QString s;
+    qDebug()<<s.length();
+    s="wasdsfsafsewrt";
+    qDebug()<<s<<"  "<<s.length();
 
     return 0;
 }

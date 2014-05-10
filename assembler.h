@@ -4,6 +4,7 @@
 #include <iostream>
 #include <QString>
 #include <QRegExp>
+#include <QTextStream>
 
 
 struct CoreInstruction{
@@ -95,11 +96,16 @@ class MatchTable {
 private:
     QRegExp registerPatternName;
     QRegExp registerPatternNumber;
+    QString line;
+
+    int hexTextToInt(QString);
+
+
 public:
     MatchTable(void);
     int MatchInstruction(QString);
     int MatchRegister(QString);
-
+    int instructionEncode(QTextStream &streamXml, QString type);
 };
 
 #endif // ASSEMBLER_H

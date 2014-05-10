@@ -14,10 +14,12 @@ TEMPLATE = app
 
 SOURCES += \
     assembler.cpp \
-    main.cpp
+    main.cpp \
+    lookuptable.cpp
 
 HEADERS  += \
-    assembler.h
+    assembler.h \
+    lookuptable.h
 
 FORMS    +=
 
