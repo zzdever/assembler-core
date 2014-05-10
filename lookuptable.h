@@ -20,11 +20,11 @@ private:
 
 public:
     LookUpTable();
-
     void Push(QString name, int addr);
     //char isIn(char *name);
-    unsigned int lookUp(QString name);
-    void PrintAll(void);
+    unsigned int LookUp(QString name);
+    void Load(QString);
+    void Save(QString filename);
 };
 
 #endif // LOOKUPTABLE_H

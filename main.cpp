@@ -15,17 +15,19 @@
 #include "lookuptable.h"
 
 
-int Assem(void)
+int Assem(QString filename)
 {
-    QFile fileXml("/Users/ying/assemble.xml");
+    QFile fileXml(filename+".xml");
     if(!fileXml.open(QIODevice::ReadOnly | QIODevice::Text)){
         qDebug()<<"Error in opening temporary file";
+        return -1;
     }
     QTextStream streamXml(&fileXml);
 
-    QFile fileObj("/Users/ying/assemble.obj");
+    QFile fileObj(filename+".obj");
     if(!fileObj.open(QIODevice::WriteOnly | QIODevice::Text)){
         qDebug()<<"Error in writing to objet file";
+        return -1;
     }
     QTextStream streamObj(&fileObj);
 
@@ -38,6 +40,8 @@ int Assem(void)
     unsigned short int rs, rt, rd, shamt;
     unsigned int address;
     int immediate;
+    LookUpTable labelLookUpTable;
+    labelLookUpTable.Load(filename);
 
     while(!streamXml.atEnd()){
         streamXml>>line;
@@ -62,60 +66,60 @@ int Assem(void)
             switch (matchId) {
             case 0: case 3: case 4: case 16: case 17: case 19: case 22: case 29: case 30:
                 //add,addu,and,nor,or,slt,sltu,sub,subu
-                rd=(unsigned short int)matchTable.instructionEncode(streamXml,"<register>");
-                rs=(unsigned short int)matchTable.instructionEncode(streamXml,"<register>");
-                rt=(unsigned short int)matchTable.instructionEncode(streamXml,"<register>");
+                rd=(unsigned short int)matchTable.instructionEncode(streamXml,"<register>",labelLookUpTable);
+                rs=(unsigned short int)matchTable.instructionEncode(streamXml,"<register>",labelLookUpTable);
+                rt=(unsigned short int)matchTable.instructionEncode(streamXml,"<register>",labelLookUpTable);
                 instruction=instruction | rs<<21 | rt<<16 | rd<<11;
                 break;
 
             case 1: case 2: case 5: case 18: case 20: case 21:
                 //addi,addiu,andi,ori,slti,sltiu
-                rt=(unsigned short int)matchTable.instructionEncode(streamXml,"<register>");
-                rs=(unsigned short int)matchTable.instructionEncode(streamXml,"<register>");
-                immediate=(unsigned short int)matchTable.instructionEncode(streamXml,"<parameter>");
+                rt=(unsigned short int)matchTable.instructionEncode(streamXml,"<register>",labelLookUpTable);
+                rs=(unsigned short int)matchTable.instructionEncode(streamXml,"<register>",labelLookUpTable);
+                immediate=(unsigned short int)matchTable.instructionEncode(streamXml,"<parameter>",labelLookUpTable);
                 instruction=instruction | rs<<21 | rt<<16 | immediate;
                 break;
 
             case 6: case 7:
                 //beq,bne
-                rs=(unsigned short int)matchTable.instructionEncode(streamXml,"<register>");
-                rt=(unsigned short int)matchTable.instructionEncode(streamXml,"<register>");
-                address=(unsigned short int)matchTable.instructionEncode(streamXml,"<reference>");
+                rs=(unsigned short int)matchTable.instructionEncode(streamXml,"<register>",labelLookUpTable);
+                rt=(unsigned short int)matchTable.instructionEncode(streamXml,"<register>",labelLookUpTable);
+                address=(unsigned short int)matchTable.instructionEncode(streamXml,"<reference>",labelLookUpTable);
                 instruction=instruction | rs<<21 | rt<<16 | address;
                 break;
 
             case 8: case 9:
                 //j,jal
-                address=(unsigned short int)matchTable.instructionEncode(streamXml,"<reference>");
+                address=(unsigned short int)matchTable.instructionEncode(streamXml,"<reference>",labelLookUpTable);
                 instruction=instruction | address<<26;
                 break;
 
             case 10:
                 //jr
-                rs=(unsigned short int)matchTable.instructionEncode(streamXml,"<register>");
+                rs=(unsigned short int)matchTable.instructionEncode(streamXml,"<register>",labelLookUpTable);
                 instruction=instruction | rs<<21;
                 break;
 
             case 11: case 12: case 13: case 15: case 25: case 26: case 27: case 28:
                 //lbu,lhu,ll,lw,sb,sc,sh,sw
-                rt=(unsigned short int)matchTable.instructionEncode(streamXml,"<register>");
-                immediate=(unsigned short int)matchTable.instructionEncode(streamXml,"<parameter>");
-                rs=(unsigned short int)matchTable.instructionEncode(streamXml,"<register>");
+                rt=(unsigned short int)matchTable.instructionEncode(streamXml,"<register>",labelLookUpTable);
+                immediate=(unsigned short int)matchTable.instructionEncode(streamXml,"<parameter>",labelLookUpTable);
+                rs=(unsigned short int)matchTable.instructionEncode(streamXml,"<register>",labelLookUpTable);
                 instruction=instruction | rs<<21 | rt<<16 | immediate;
                 break;
 
             case 14:
                 //lui
-                rt=(unsigned short int)matchTable.instructionEncode(streamXml,"<register>");
-                immediate=(unsigned short int)matchTable.instructionEncode(streamXml,"<parameter>");
+                rt=(unsigned short int)matchTable.instructionEncode(streamXml,"<register>",labelLookUpTable);
+                immediate=(unsigned short int)matchTable.instructionEncode(streamXml,"<parameter>",labelLookUpTable);
                 instruction=instruction | rt<<16 | immediate;
                 break;
 
             case 23: case 24:
                 //sll,srl
-                rd=(unsigned short int)matchTable.instructionEncode(streamXml,"<register>");
-                rt=(unsigned short int)matchTable.instructionEncode(streamXml,"<register>");;
-                shamt=(unsigned short int)matchTable.instructionEncode(streamXml,"<parameter>");
+                rd=(unsigned short int)matchTable.instructionEncode(streamXml,"<register>",labelLookUpTable);
+                rt=(unsigned short int)matchTable.instructionEncode(streamXml,"<register>",labelLookUpTable);
+                shamt=(unsigned short int)matchTable.instructionEncode(streamXml,"<parameter>",labelLookUpTable);
                 instruction=instruction | rs<<21 | rt<<16 | rd<<11 | shamt<<6;
                 break;
 
@@ -127,10 +131,6 @@ int Assem(void)
             streamObj<<qSetFieldWidth(8)<<qSetPadChar('0')<<hex<<instruction;
             streamObj<<reset;
             streamObj<<endl;
-        }
-        else if(line.compare("<label>"))
-        {
-            ;
         }
 
         line=streamXml.readLine();
@@ -145,21 +145,23 @@ int Assem(void)
 }
 //#endif
 #if PARSE
-int main(void)
+int Parser(QString filename)
 {
     //QTextCodec *codecName=QTextCodec::codecForUtfText("UTF-8");
     //QTextCodec::setCodecForLocale(codecName);
     //QString filename;
     //filename="assemble";
-    QFile fileAsm("/Users/ying/assemble");
+    QFile fileAsm(filename);
     if(!fileAsm.open(QIODevice::ReadOnly | QIODevice::Text)){
         qDebug()<<"Error in opening ASM file";
+        return -1;
     }
     QTextStream streamAsm(&fileAsm);
 
-    QFile fileXml("/Users/ying/assemble.xml");
+    QFile fileXml(filename+".xml");
     if(!fileXml.open(QIODevice::WriteOnly | QIODevice::Text)){
         qDebug()<<"Error in writing to output file";
+        return -1;
     }
     QTextStream streamXml(&fileXml);
 
@@ -264,10 +266,21 @@ int main(void)
         }
     }
 
+    labelLookUpTable.Save(filename);
+
     fileAsm.close();
     fileXml.close();
 
-    labelLookUpTable.PrintAll();
+    return 0;
+}
+
+
+int main(void)
+{
+    QString filename("/Users/ying/assemble");
+
+    Parser(filename);
+    Assem(filename);
 
     return 0;
 }
@@ -324,7 +337,8 @@ int main(void)
     QString s;
     qDebug()<<s.length();
     s="wasdsfsafsewrt";
-    qDebug()<<s<<"  "<<s.length();
+    unsigned int a=-1;
+    qDebug()<<hex<<a;
 
     return 0;
 }

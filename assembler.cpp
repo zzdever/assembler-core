@@ -40,7 +40,7 @@ int MatchTable::MatchRegister(QString registerName)
 }
 
 
-int MatchTable::instructionEncode(QTextStream &streamXml, QString type)
+int MatchTable::instructionEncode(QTextStream &streamXml, QString type, LookUpTable labelTable)
 {
     int matchId;
 
@@ -85,7 +85,20 @@ int MatchTable::instructionEncode(QTextStream &streamXml, QString type)
     }
     else if(line.compare("<reference>")==0)
     {
-        //tokenList[i];
+        streamXml>>line;
+qDebug()<<"reference name"<<line;
+        unsigned int address=0;
+        address=labelTable.LookUp(line);
+  qDebug()<<"address: "<<address;
+        if(address<0xffffffff)  //address < 0xffffffff
+        {
+            streamXml.readLine();
+            return address;
+        }
+        else
+        {
+            qDebug()<<"Unrecognized label reference "<<line;
+        }
     }
 
     streamXml.readLine();

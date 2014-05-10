@@ -5,6 +5,7 @@
 #include <QString>
 #include <QRegExp>
 #include <QTextStream>
+#include "lookuptable.h"
 
 
 struct CoreInstruction{
@@ -105,7 +106,7 @@ public:
     MatchTable(void);
     int MatchInstruction(QString);
     int MatchRegister(QString);
-    int instructionEncode(QTextStream &streamXml, QString type);
+    int instructionEncode(QTextStream &streamXml, QString type, LookUpTable labelTable);
 };
 
 #endif // ASSEMBLER_H
