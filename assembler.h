@@ -101,11 +101,11 @@ private:
 
     int hexTextToInt(QString);
 
-
 public:
     MatchTable(void);
     int MatchInstruction(QString);
     int MatchRegister(QString);
+    int DisassemMatchRegister(unsigned int, unsigned int);
     int instructionEncode(QTextStream &streamXml, QString type, LookUpTable labelTable);
 };
 

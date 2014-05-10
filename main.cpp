@@ -1,7 +1,7 @@
-﻿#define ASSEM 0
-#define PARSE 01
-#define TEST  0
-#define TEST2 0
+﻿#define DISASSEM 01
+#define ASSEM    0
+#define TEST     0
+#define TEST2    0
 
 #include <iostream>
 #include <sstream>
@@ -11,10 +11,128 @@
 #include <QRegExp>
 #include <QDebug>
 #include <QTextCodec>
+#include <QByteArray>
 #include "assembler.h"
 #include "lookuptable.h"
 
+#if TEST2
 
+
+int main(void)
+{
+    quint32 instruction;
+    instruction=0xf0;
+    qDebug()<<((instruction>>4)&0x1);
+
+    return 0;
+}
+#endif
+#if DISASSEM
+int main(void)
+{
+QString filename("/Users/ying/assemble");
+    QFile fileObj(filename+".objj");
+    if(!fileObj.open(QIODevice::ReadOnly )){
+        qDebug()<<"Error in opening object file";
+        return -1;
+    }
+    //QTextStream streamObj(&fileObj);
+    QDataStream streamObj(&fileObj);
+    streamObj.setVersion(QDataStream::Qt_5_2);
+
+    QFile fileDisassem(filename+".disasm");
+    if(!fileDisassem.open(QIODevice::WriteOnly | QIODevice::Text)){
+        qDebug()<<"Error in writing to disassemble file";
+        return -1;
+    }
+    QTextStream streamDisassem(&fileDisassem);
+
+
+    //unsigned int instruction;
+    quint32 instruction;
+    MatchTable matchTable;
+    int matchId;
+    while(!streamObj.atEnd())
+    {
+        streamObj>>instruction;
+
+        matchId=matchTable.DisassemMatchRegister(instruction>>26, instruction & 0x3f);
+        switch (matchId) {
+        case 0: case 3: case 4: case 16: case 17: case 19: case 22: case 29: case 30:
+            //add,addu,and,nor,or,slt,sltu,sub,subu
+            streamDisassem<<coreInstructionSet[matchId].mnemonic<<" $"
+                            <<((instruction>>11)&0x1f)<<", $"
+                           <<((instruction>>21)&0x1f)<<", $"
+                             <<((instruction>>16)&0x1f)<<endl;
+            break;
+
+        case 1: case 2: case 5: case 18: case 20: case 21:
+            //addi,addiu,andi,ori,slti,sltiu
+            streamDisassem<<coreInstructionSet[matchId].mnemonic<<" $"
+                            <<((instruction>>16)&0x1f)<<", $"
+                           <<((instruction>>21)&0x1f)<<", "
+                             <<(instruction&0xffff)<<endl;
+            break;
+
+        case 6: case 7:
+            //beq,bne
+            streamDisassem<<coreInstructionSet[matchId].mnemonic<<" $"
+                            <<((instruction>>21)&0x1f)<<", $"
+                           <<((instruction>>16)&0x1f)<<", "
+                             <<hex<<(instruction&0xffff)<<reset<<endl;
+            break;
+
+        case 8: case 9:
+            //j,jal
+            streamDisassem<<coreInstructionSet[matchId].mnemonic<<" "
+                          <<hex<<(instruction&0x3ffffff)<<reset<<endl;
+            break;
+
+        case 10:
+            //jr
+            streamDisassem<<coreInstructionSet[matchId].mnemonic<<" $"
+                          <<((instruction>>21)&0x1f)<<endl;
+            break;
+
+        case 11: case 12: case 13: case 15: case 25: case 26: case 27: case 28:
+            //lbu,lhu,ll,lw,sb,sc,sh,sw
+            streamDisassem<<coreInstructionSet[matchId].mnemonic<<" $"
+                            <<((instruction>>16)&0x1f)<<", "
+                           <<(instruction&0xffff)<<"($"
+                             <<((instruction>>21)&0x1f)<<")"<<endl;
+            break;
+
+        case 14:
+            //lui
+            streamDisassem<<coreInstructionSet[matchId].mnemonic<<" $"
+                            <<((instruction>>16)&0x1f)<<", "
+                           <<(instruction&0xffff)<<endl;
+            break;
+
+        case 23: case 24:
+            //sll,srl
+            streamDisassem<<coreInstructionSet[matchId].mnemonic<<" $"
+                            <<((instruction>>11)&0x1f)<<", $"
+                           <<((instruction>>16)&0x1f)<<", "
+                             <<((instruction>>6)&0x1f)<<endl;
+            break;
+
+        default:
+            qDebug()<<"Unknown instruction"<<hex<<instruction<<reset;
+            break;
+        }
+
+    }
+
+    fileObj.close();
+    fileDisassem.close();
+
+    return 0;
+}
+
+#endif
+
+#if ASSEM
 int Assem(QString filename)
 {
     QFile fileXml(filename+".xml");
@@ -26,7 +144,7 @@ int Assem(QString filename)
 
     QFile fileObj(filename+".obj");
     if(!fileObj.open(QIODevice::WriteOnly | QIODevice::Text)){
-        qDebug()<<"Error in writing to objet file";
+        qDebug()<<"Error in writing to object file";
         return -1;
     }
     QTextStream streamObj(&fileObj);
@@ -58,7 +176,11 @@ int Assem(QString filename)
             streamXml>>line;
             matchId=matchTable.MatchInstruction(line);
 
-            if(matchId<0) qDebug()<<line<<"Unknown/unsupported instruction name";
+            if(matchId<0)
+            {
+                qDebug()<<line<<": Unknown/unsupported instruction name";
+                continue;
+            }
             instruction=coreInstructionSet[matchId].opcode<<26
                       | coreInstructionSet[matchId].funct;
 
@@ -91,7 +213,7 @@ int Assem(QString filename)
             case 8: case 9:
                 //j,jal
                 address=(unsigned short int)matchTable.instructionEncode(streamXml,"<reference>",labelLookUpTable);
-                instruction=instruction | address<<26;
+                instruction=instruction | address;
                 break;
 
             case 10:
@@ -143,8 +265,8 @@ int Assem(QString filename)
 
     return 0;
 }
-//#endif
-#if PARSE
+
+
 int Parser(QString filename)
 {
     //QTextCodec *codecName=QTextCodec::codecForUtfText("UTF-8");
@@ -192,7 +314,7 @@ int Parser(QString filename)
         short labelFlag=0;
         short instructionFlag=0;
         while(position<line.length())
-        {qDebug()<<"position:  "<<position;
+        {
             if(line[position]=='#' || (line[position]=='/'&&line[position+1]=='/'))
                 break;
 
@@ -201,7 +323,6 @@ int Parser(QString filename)
                 matchPosition=labelPattern.indexIn(line,position);
                 if(matchPosition>=0)
                 {
-                    qDebug()<<labelPattern.capturedTexts();
                     streamXml<<"<label> "<<labelPattern.capturedTexts()[1]
                             <<" </label>"<<endl;
                     labelLookUpTable.Push(labelPattern.capturedTexts()[1],address);
@@ -217,7 +338,6 @@ int Parser(QString filename)
                 matchPosition=instructionPattern.indexIn(line,position);
                 if(matchPosition>=0)
                 {
-                    qDebug()<<instructionPattern.capturedTexts();
                     streamXml<<"\t<instruction> "<<instructionPattern.capturedTexts()[1]
                             <<" </instruction>"<<endl;
                     position=matchPosition+instructionPattern.matchedLength();
@@ -233,7 +353,7 @@ int Parser(QString filename)
             {
                 matchPosition=registerPattern.indexIn(line,position);
                 if(matchPosition>=0)
-                {qDebug()<<registerPattern.capturedTexts();
+                {
                     streamXml<<"\t\t<register> "<<registerPattern.capturedTexts()[1]
                             <<" </register>"<<endl;
                     position=matchPosition+registerPattern.matchedLength();
@@ -243,7 +363,7 @@ int Parser(QString filename)
 
             matchPosition=parameterPattern.indexIn(line,position);
             if(matchPosition>=0)
-            {qDebug()<<parameterPattern.capturedTexts();
+            {
                 if((line[position]>='a'&&line[position]<='z')
                         ||(line[position]>='A'&&line[position]<='Z'))
                     streamXml<<"\t\t<reference> "<<parameterPattern.capturedTexts()[1]
@@ -259,8 +379,6 @@ int Parser(QString filename)
 
         if(position<line.length())
         {
-            //line.;
-            //streamXml.codec("utf8");      &line.toStdString()[position]
             streamXml<<"<comment> "<<line.mid(position,line.length())
                     <<" </comment>"<<endl;
         }
@@ -329,17 +447,4 @@ int main(void)
 
 #endif
 
-#if TEST2
 
-
-int main(void)
-{
-    QString s;
-    qDebug()<<s.length();
-    s="wasdsfsafsewrt";
-    unsigned int a=-1;
-    qDebug()<<hex<<a;
-
-    return 0;
-}
-#endif

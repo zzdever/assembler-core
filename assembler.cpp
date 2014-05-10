@@ -39,6 +39,26 @@ int MatchTable::MatchRegister(QString registerName)
     return -1;
 }
 
+int MatchTable::DisassemMatchRegister(unsigned int opcode, unsigned int funct)
+{
+    for(int i=0;i<INSTRUCTIONSETSIZE;i++)
+    {
+        if(i==0 || i==3 || i==4 || i==10
+                || i==16 || i==17 || i==19
+                || i==22 || i==23 || i==24
+                || i==29 || i==30 )
+        {
+            if(opcode==coreInstructionSet[i].opcode && funct ==coreInstructionSet[i].funct)
+                        return i;
+        }
+        else
+        {
+            if(opcode==coreInstructionSet[i].opcode)
+                        return i;
+        }
+    }
+    return -1;
+}
 
 int MatchTable::instructionEncode(QTextStream &streamXml, QString type, LookUpTable labelTable)
 {
@@ -86,10 +106,8 @@ int MatchTable::instructionEncode(QTextStream &streamXml, QString type, LookUpTa
     else if(line.compare("<reference>")==0)
     {
         streamXml>>line;
-qDebug()<<"reference name"<<line;
         unsigned int address=0;
         address=labelTable.LookUp(line);
-  qDebug()<<"address: "<<address;
         if(address<0xffffffff)  //address < 0xffffffff
         {
             streamXml.readLine();
