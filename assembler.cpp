@@ -39,7 +39,7 @@ int MatchTable::MatchRegister(QString registerName)
     return -1;
 }
 
-int MatchTable::DisassemMatchRegister(unsigned int opcode, unsigned int funct)
+int MatchTable::DisassemMatchInstruction(unsigned int opcode, unsigned int funct)
 {
     for(int i=0;i<INSTRUCTIONSETSIZE;i++)
     {
